@@ -1,0 +1,290 @@
+{
+  "name": "ResultadoVendaDia",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -96,
+        160
+      ],
+      "id": "c5aa2881-8acd-4d30-abe8-5d27bfeae18f",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const modeloNode = $items(\"SQL - Modelo Mais Vendido\");\nconst totalNode = $items(\"SQL - Total Geral Vendas\");\nconst ontemNode = $items(\"SQL - Vendas Ontem\");\nconst mediaNode = $items(\"SQL - Média 7 dias\");\nconst historicoNode = $items(\"SQL - Histórico 7 dias\");\nconst rankingNode = $items(\"SQL - Ranking Veículos\"); // 👈 NOVO\n\n// 🔢 Números\nconst hoje = Number(totalNode[0].json.total_vendas);\nconst ontem = Number(ontemNode[0].json.total_vendas_ontem);\nconst media = Number(mediaNode[0].json.media_7_dias);\n\n// 💰 Faturamento\nconst faturamento_hoje = Number(totalNode[0].json.valor_total.replace(/,/g, \"\"));\nconst faturamento_ontem = Number(ontemNode[0].json.valor_total_ontem.replace(/,/g, \"\"));\n\n// 🚗 Modelos\nconst modelo_hoje = modeloNode[0].json.modelocarro;\nconst modelo_ontem = ontemNode[0]?.json?.modelocarro || \"\";\n\n// 📊 Regras\nconst vendas_baixas = hoje < media;\nconst faturamento_caiu = faturamento_hoje < faturamento_ontem;\nconst modelo_mudou = modelo_hoje !== modelo_ontem;\n\n// 🚨 Alertas\nlet alertas = [];\n\nif (vendas_baixas) alertas.push(\"📉 Vendas abaixo da média semanal\");\nif (faturamento_caiu) alertas.push(\"💰 Faturamento caiu\");\nif (modelo_mudou) alertas.push(\"🚗 Modelo mais vendido mudou\");\n\n// 📈 Variação\nconst variacao = ontem > 0 ? ((hoje - ontem) / ontem) * 100 : 0;\n\n// 📊 HISTÓRICO\nconst labels = historicoNode.map(i => i.json.dia);\nconst dados = historicoNode.map(i => i.json.total);\n\n// 🚗 🔥 RANKING DE VEÍCULOS (NOVO)\nconst ranking = rankingNode.map(item => ({\n  modelo: item.json.modelo,\n  total: item.json.total\n}));\n\n// 📊 CONFIGURAÇÃO DO GRÁFICO\nconst chartConfig = {\n  type: \"line\",\n  data: {\n    labels: labels,\n    datasets: [\n      {\n        label: \"Vendas por dia\",\n        data: dados,\n        fill: false,\n        borderColor: \"blue\",\n        borderWidth: 2,\n        pointBackgroundColor: \"blue\",\n        tension: 0.3\n      }\n    ]\n  },\n  options: {\n    layout: {\n      padding: {\n        top: 50,\n        bottom: 20\n      }\n    },\n    plugins: {\n      legend: {\n        display: true,\n        position: \"top\"\n      },\n      tooltip: {\n        enabled: false\n      },\n      datalabels: {\n        display: true,\n        color: \"black\",\n        anchor: \"end\",\n        align: \"top\",\n        offset: 10,\n        font: {\n          weight: \"bold\",\n          size: 10\n        }\n      }\n    },\n    scales: {\n      y: {\n        beginAtZero: true\n      }\n    }\n  },\n  plugins: [\"chartjs-plugin-datalabels\"]\n};\n\n// 🔗 URL DO GRÁFICO\nconst chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}`;\n\n// 🚨 ALERTA FINAL\nconst mensagem_alerta = alertas.length \n  ? alertas.join(\"<br>\")\n  : \"✅ Tudo dentro do esperado\";\n\n// RELATORIO\n\nconst html = ` \n<div style=\"font-family: Arial; background:#f4f6f8; padding:20px;\">\n<h2>📊 Relatório Diário de Vendas</h2>\n\n<p><b>Total de vendas do dia:</b> ${hoje}</p>\n<p><b>Faturamento do dia:</b> R$ ${totalNode[0].json.valor_total}</p>\n<p><b>Modelo mais vendido:</b> ${modelo_hoje}</p>\n<p><b>Quantidade modelo mais vendido:</b> ${modeloNode[0].json.top_auto_vendido}</p>\n\n<p><b>Alerta:</b> ${mensagem_alerta}</p>\n\n<h3>📊 Evolução</h3>\n<img src=\"${chartUrl}\" style=\"width:100%\" />\n\n<h3>🏆 Ranking</h3>\n<ul>\n  ${ranking.map(r => `<li>${r.modelo} - ${r.total} vendas</li>`).join(\"\")}\n</ul>\n`;\n\n// 🎯 RETORNO FINAL\nreturn [\n  {\n    json: {\n      total_vendas: hoje,\n      valor_total: totalNode[0].json.valor_total,\n      modelocarro: modelo_hoje,\n      top_auto_vendido: modeloNode[0].json.top_auto_vendido,\n      variacao: variacao.toFixed(2),\n      media_7_dias: media,\n      alerta: mensagem_alerta,\n      chart_url: chartUrl,\n      json: html,\n      ranking // 👈 NOVO DADO ADICIONADO\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        160
+      ],
+      "id": "2d8fe08b-f849-4927-884a-c5e3f49d7e25",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* SQL - Modelo Mais Vendido */\n\nSELECT \n    ve.nome AS modelocarro,\n    COUNT(*) AS top_auto_vendido\nFROM clientes c\nLEFT JOIN vendas v \n    ON v.id_clientes = c.id_clientes\nLEFT JOIN veiculos ve \n    ON ve.id_veiculos = v.id_veiculos\nWHERE c.data_inclusao >= '2026-03-18'\nGROUP BY ve.nome\nORDER BY top_auto_vendido DESC\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        80,
+        160
+      ],
+      "id": "7b584447-9540-4da9-9503-8061d61b10bf",
+      "name": "SQL - Modelo Mais Vendido",
+      "credentials": {
+        "postgres": {
+          "id": "pCzSH6jYsvqSSw5J",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* SQL - Total Geral Vendas */\n\n\nSELECT \n    COUNT(v.id_clientes) AS total_vendas,\n    TO_CHAR(\n        SUM(v.valor_pago),\n        'FM999G999G999G990D00'\n    ) AS valor_total\nFROM clientes c\nLEFT JOIN concessionarias cc \n    ON cc.id_concessionarias = c.id_concessionarias\nLEFT JOIN vendas v \n    ON v.id_clientes = c.id_clientes\nLEFT JOIN veiculos ve \n    ON ve.id_veiculos = v.id_veiculos\nLEFT JOIN vendedores vend \n    ON vend.id_vendedores = v.id_vendedores\nWHERE c.data_inclusao >= CURRENT_DATE\nAND c.data_inclusao < CURRENT_DATE + INTERVAL '1 day';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        272,
+        160
+      ],
+      "id": "13182749-29ec-4441-894d-6b19121591d7",
+      "name": "SQL - Total Geral Vendas",
+      "credentials": {
+        "postgres": {
+          "id": "pCzSH6jYsvqSSw5J",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    COUNT(*) AS total_vendas_ontem,\n    SUM(valor_pago) AS valor_total_ontem,\n    ve.nome AS modelocarro\nFROM vendas v\nLEFT JOIN veiculos ve ON ve.id_veiculos = v.id_veiculos\nWHERE DATE(v.data_venda) = CURRENT_DATE - INTERVAL '1 day'\nGROUP BY ve.nome\nORDER BY COUNT(*) DESC\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        480,
+        160
+      ],
+      "id": "99746d46-598c-4df1-a468-c738cda1daae",
+      "name": "SQL - Vendas Ontem",
+      "credentials": {
+        "postgres": {
+          "id": "pCzSH6jYsvqSSw5J",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "report@example.com",
+        "toEmail": "user@example.com",
+        "subject": "📈 Resultado das Vendas do Dia",
+        "html": "={{ $json.json }}",
+        "options": {
+          "attachments": "data"
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1504,
+        160
+      ],
+      "id": "9381c739-effd-43d9-b7bd-ceb019c710a4",
+      "name": "Email Diário",
+      "webhookId": "9b3b65ff-9ba0-4354-bb03-bc3a79fa1089",
+      "credentials": {
+        "smtp": {
+          "id": "nF005x8AkZpgarPX",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    AVG(total_dia) AS media_7_dias\nFROM (\n    SELECT \n        DATE(data_venda) AS dia,\n        COUNT(*) AS total_dia\n    FROM vendas\n    WHERE data_venda >= CURRENT_DATE - INTERVAL '7 days'\n    GROUP BY DATE(data_venda)\n) t;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        688,
+        160
+      ],
+      "id": "35f211df-4af7-4bbd-a3be-723248a7ae4b",
+      "name": "SQL - Média 7 dias",
+      "credentials": {
+        "postgres": {
+          "id": "pCzSH6jYsvqSSw5J",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    TO_CHAR(data_venda, 'DD/MM') AS dia,\n    COUNT(*) AS total\nFROM vendas\nWHERE data_venda >= CURRENT_DATE - INTERVAL '7 days'\nGROUP BY TO_CHAR(data_venda, 'DD/MM')\nORDER BY MIN(data_venda);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        896,
+        160
+      ],
+      "id": "55c9b752-7a74-4fd1-b8a4-6c45844af1be",
+      "name": "SQL - Histórico 7 dias",
+      "credentials": {
+        "postgres": {
+          "id": "pCzSH6jYsvqSSw5J",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT modelo, SUM(total) AS total\nFROM (\n    SELECT \n        ve.nome AS modelo,\n        COUNT(*) AS total\n    FROM vendas v\n    LEFT JOIN veiculos ve \n        ON ve.id_veiculos = v.id_veiculos\n    GROUP BY ve.nome, v.id_vendas\n) t\nGROUP BY modelo\nORDER BY total DESC\nLIMIT 5;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1104,
+        160
+      ],
+      "id": "55e271d4-fdf6-4ed1-b419-aba64b1ceaa5",
+      "name": "SQL - Ranking Veículos",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "pCzSH6jYsvqSSw5J",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "SQL - Modelo Mais Vendido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Email Diário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL - Modelo Mais Vendido": {
+      "main": [
+        [
+          {
+            "node": "SQL - Total Geral Vendas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL - Total Geral Vendas": {
+      "main": [
+        [
+          {
+            "node": "SQL - Vendas Ontem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL - Vendas Ontem": {
+      "main": [
+        [
+          {
+            "node": "SQL - Média 7 dias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL - Média 7 dias": {
+      "main": [
+        [
+          {
+            "node": "SQL - Histórico 7 dias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL - Histórico 7 dias": {
+      "main": [
+        [
+          {
+            "node": "SQL - Ranking Veículos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL - Ranking Veículos": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "55d5a828-a5c4-4ab3-9fdf-12cdcbda8e0d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a9899b489fd891ce5d969d926ac61950a123c3152679f8e80e1f0c2de7fc7ee3"
+  },
+  "id": "cLSeyD6PNiKYc6t2",
+  "tags": []
+}
