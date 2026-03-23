@@ -52,6 +52,13 @@ Esse projeto pode ser usado para:
 * Automação de relatórios
 * BI leve sem ferramentas pesadas
 
+## ▶️ Como usar
+
+1. Importar o workflow no n8n
+2. Configurar conexão com banco
+3. Ajustar credenciais de email
+4. Executar
+
 ---
 
 ## 👨‍💻 Autor
