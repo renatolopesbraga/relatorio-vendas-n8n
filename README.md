@@ -29,14 +29,6 @@ Este projeto automatiza a geração de um relatório diário de vendas, enviando
 * JavaScript
 * QuickChart
 
-## 📸 Preview
-
-![Dashboard](./imagens/RelVendas.png)
-
-## 🔄 Fluxo
-
-![Fluxo n8n](./imagens/Codigo.png)
-
 ## 📂 Estrutura
 
 * `workflow-n8n.json` → fluxo completo
