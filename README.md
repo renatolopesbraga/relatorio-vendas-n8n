@@ -31,11 +31,11 @@ Este projeto automatiza a geração de um relatório diário de vendas, enviando
 
 ## 📸 Preview
 
-![Dashboard](./imagens/dashboard.png)
+![Dashboard](./imagens/RelVendas.png)
 
 ## 🔄 Fluxo
 
-![Fluxo n8n](./imagens/fluxo-n8n.png)
+![Fluxo n8n](./imagens/Codigo.png)
 
 ## 📂 Estrutura
 
